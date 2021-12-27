@@ -1,0 +1,43 @@
+#:kivy 1.0
+
+<Screen>:
+	MDBoxLayout:
+		orientation: 'vertical'
+
+		MDLabel: 
+			text: "PYTHON IN A BOX"
+			markup: True 
+			halign: "center"
+			font_style: "H2"
+			size_hint: 1, 0.4
+
+		MDFloatLayout:
+			MDFillRoundFlatButton:
+				id: serial_port_button
+				text: "PRESS ME"
+				md_bg_color: app.theme_cls.primary_light
+				pos_hint: {"center_x": .5, "center_y": 1}
+				on_release: app.show_serial_menu()
+
+			MDFillRoundFlatButton:
+				orientation: "vertical"
+				markup: True
+				font_style: 'H4'
+				text: "firmware file .bin"
+				pos_hint: {"center_x": 0.5, "center_y": 0.8}
+				on_release: app.file_manager_open()
+
+			MDLabel:
+				id: firmware_path
+				markup: True
+				text: ""
+				halign: "center"
+				pos_hint: {"center_x": 0.5, "center_y": 0.6}
+
+			MDFillRoundFlatButton:
+				id: loader_button
+				orientation: "vertical"
+				text: "LOAD ON DEVICE"
+				pos_hint: {"center_x": 0.5, "center_y": 0.4}
+				disabled: True 
+				on_release: app.load_on_device()
