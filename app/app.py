@@ -2,6 +2,7 @@
 
 import random
 import subprocess
+from serial.tools.list_ports import comports
 from pathlib import Path
 from kivy.uix.screenmanager import Screen
 from kivy.app import App
@@ -24,6 +25,8 @@ class MainApp(MDApp):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Window.bind(on_keyboard=self.events)
+        self.firmware_path = False
+        self.serial_port = False
         self.manager_open = False
         self.file_manager = MDFileManager(
             exit_manager=self.exit_manager,
@@ -32,11 +35,11 @@ class MainApp(MDApp):
             selector='file',
             ext=['.py']
         )
-        print(self.theme_cls.font_styles)
+        # print(self.theme_cls.font_styles)
 
     def build(self):
-        print(self.theme_cls.__dict__)
-        self.theme_cls.theme_style = "Light"
+        self.theme_cls.primary_palette = "Teal"
+        self.theme_cls.accent_palette = "Teal"
         screen = Screen()
         Window.size = (800, 600)
         return screen
@@ -55,12 +58,18 @@ class MainApp(MDApp):
 
         self.exit_manager()
         label = self.root.ids.firmware_path
-        loader_button = self.root.ids.loader_button
-
-        loader_button.disabled = False
         label.text = self.get_absolute_path(path)
         self.firmware_path = path
+        self.loader_button_active()
         toast(path)
+
+    def loader_button_active(self):
+        loader_button = self.root.ids.loader_button
+
+        if self.firmware_path and self.serial_port:
+            loader_button.disabled = False
+        else:
+            loader_button.disabled = True
 
     def exit_manager(self, *args):
         '''Called when the user reaches the root of the directory tree.'''
@@ -76,32 +85,42 @@ class MainApp(MDApp):
         print(self.firmware_path)
 
     def show_serial_menu(self):
+        s_ports = self.get_serial_ports()
+
         menu_items = [
             {
-                "text": f"Item {i}",
+                "text": f"{i.device}",
                 "viewclass": "OneLineListItem",
-                "on_release": lambda x=f"Item {i}": self.menu_callback(x),
-            } for i in range(random.randint(2, 8))
+                "on_release": lambda x=i: self.menu_callback(x),
+            } for i in s_ports
         ]
         self.menu = MDDropdownMenu(
             caller=self.root.ids.serial_port_button,
             items=menu_items,
             width_mult=4,
+            max_height=len(s_ports) * 48
         )
 
         self.menu.open()
 
-    def menu_callback(self, text_item):
-        print(text_item)
+    def menu_callback(self, dev):
+        but = self.root.ids.serial_port_button
+        but.text = dev.device
+        self.serial_port = dev
+        self.loader_button_active()
+        self.menu.dismiss()
 
-    """
-    def events(self, instance, keyboard, keycode, text, modifiers):
-        '''Called when buttons are pressed on the mobile device.'''
+    def get_serial_ports(self):
+        ports = comports()
+        if ports:
+            return ports
+        else:
+            return [PlaceholderSerialPort()]
 
-        if keyboard in (1001, 27):
-            if self.manager_open:
-                self.file_manager.back()
-        return True"""
+
+class PlaceholderSerialPort():
+    def __init__(self):
+        self.device = "no device available"
 
 
 MainApp().run()
