@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import random
+import time
 import subprocess
+from functools import partial
 from serial.tools.list_ports import comports
 from pathlib import Path
 from kivy.uix.screenmanager import Screen
@@ -19,6 +20,9 @@ from kivymd.toast import toast
 from kivymd.uix.menu import MDDropdownMenu
 from kivy.core.text import LabelBase
 from kivymd.font_definitions import theme_font_styles
+from kivy.clock import Clock
+import asynckivy as ak
+import asyncio
 
 
 class MainApp(MDApp):
@@ -28,6 +32,7 @@ class MainApp(MDApp):
         self.firmware_path = False
         self.serial_port = False
         self.manager_open = False
+        self.spinner_status = False
         self.file_manager = MDFileManager(
             exit_manager=self.exit_manager,
             select_path=self.select_path,
@@ -85,18 +90,43 @@ class MainApp(MDApp):
     def load_on_device(self):
         firmware = self.firmware_path
         serial_port = self.serial_port
+        # self.erase_flash(serial_port)
+        # self.update_flash(serial_port, firmware)
+        asyncio.run(self.update_flash(serial_port, firmware))
 
-    def erase_flash(device):
-        # esptool.py --chip esp32 --port /dev/ttyUSB0 erase_flash
-        subprocess.run(['esptool.py', '--chip', 'esp32',
-                       '--port', device.device, 'erase_flash'])
+    def erase_flash(self, device):
+        """erase esp32 flash"""
+        """subprocess.run(['esptool.py', '--chip', 'esp32',
+                       '--port', device.device, 'erase_flash'])"""
+        pass
 
-    def update_flash(device, firmware):
-        # esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash -z 0x1000 esp32-xxx-vyyy.bin
-        subprocess.run(['esptool.py', '--chip', 'esp32',
+    async def update_flash(self, device, firmware):
+        """update esp32 flash"""
+        """subprocess.run(['esptool.py', '--chip', 'esp32',
                        '--port', device.device, '--baud',
                         '460800', 'write_flash', '-z',
-                        '0x1000', firmware])
+                        '0x1000', firmware])"""
+        # await subprocess.run(['sleep', '2'])
+
+        self.status_spinner(True)
+        proc = await asyncio.create_subprocess_shell(
+            'sleep 2',
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await proc.communicate()
+
+        """stdout, stderr = await proc.communicate()
+
+        print(f'[command exited with {proc.returncode}]')
+        if stdout:
+            print(f'[stdout]\n{stdout.decode()}')
+        if stderr:
+            print(f'[stderr]\n{stderr.decode()}')"""
+
+    def status_spinner(self, status):
+        spinner_id = self.root.ids.loader_spinner
+        spinner_id.active = status
 
     def show_serial_menu(self):
         s_ports = self.get_serial_ports()
