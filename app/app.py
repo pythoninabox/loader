@@ -33,7 +33,7 @@ class MainApp(MDApp):
             select_path=self.select_path,
             preview=False,
             selector='file',
-            ext=['.py']
+            ext=['.py', '.bin']
         )
         # print(self.theme_cls.font_styles)
 
@@ -58,7 +58,8 @@ class MainApp(MDApp):
 
         self.exit_manager()
         label = self.root.ids.firmware_path
-        label.text = self.get_absolute_path(path)
+        path = self.get_absolute_path(path)
+        label.text = path
         self.firmware_path = path
         self.loader_button_active()
         toast(path)
@@ -82,7 +83,20 @@ class MainApp(MDApp):
         return p.resolve().__str__()
 
     def load_on_device(self):
-        print(self.firmware_path)
+        firmware = self.firmware_path
+        serial_port = self.serial_port
+
+    def erase_flash(device):
+        # esptool.py --chip esp32 --port /dev/ttyUSB0 erase_flash
+        subprocess.run(['esptool.py', '--chip', 'esp32',
+                       '--port', device.device, 'erase_flash'])
+
+    def update_flash(device, firmware):
+        # esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 460800 write_flash -z 0x1000 esp32-xxx-vyyy.bin
+        subprocess.run(['esptool.py', '--chip', 'esp32',
+                       '--port', device.device, '--baud',
+                        '460800', 'write_flash', '-z',
+                        '0x1000', firmware])
 
     def show_serial_menu(self):
         s_ports = self.get_serial_ports()
