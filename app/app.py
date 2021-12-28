@@ -92,21 +92,31 @@ class MainApp(MDApp):
         # self.erase_flash(serial_port)
         # self.update_flash(serial_port, firmware)
         # ak.start(self.status_spinner(True))
-        trio.run(self.mbuto)
+        trio.run(self.nursery_erase)
 
-        # asyncio.run(self.active_loader())
+    # erasing/updating operations
 
-    async def mbuto(self):
+    async def nursery_erase(self):
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(self.status_spinner, True)
+            nursery.start_soon(self.erase_flash,
+                               self.serial_port)
+
+    async def nursery_update(self):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self.status_spinner, True)
             nursery.start_soon(self.update_flash,
                                self.serial_port, self.firmware_path)
 
-    def erase_flash(self, device):
+    async def erase_flash(self, device):
         """erase esp32 flash"""
         """subprocess.run(['esptool.py', '--chip', 'esp32',
                        '--port', device.device, 'erase_flash'])"""
-        pass
+        toast("erasing...", duration=2)
+        res = await trio.open_process(['sleep', '2'])
+
+        self.clock = Clock.schedule_interval(
+            lambda x: self.my_callback(res), 0.25)
 
     async def update_flash(self, device, firmware):
         """update esp32 flash"""
@@ -116,12 +126,8 @@ class MainApp(MDApp):
                         '0x1000', firmware])"""
         #subprocess.run(['sleep', '2'])
 
+        toast("updating...", duration=2)
         res = await trio.open_process(['sleep', '2'])
-        # async with await trio.open_process(['sleep', '2'], stdout=subprocess.PIPE) as process:
-        #    print(process.stdout)
-        #res = subprocess.Popen(['sleep', '2'])
-
-        print("print response:", res)
 
         self.clock = Clock.schedule_interval(
             lambda x: self.my_callback(res), 0.25)
@@ -130,7 +136,7 @@ class MainApp(MDApp):
         if r.returncode == 0:
             print("finito!")
             Clock.unschedule(self.clock)
-            trio.run(self.status_spinner, False)
+            trio.run(self.nursery_update)
 
     async def status_spinner(self, status):
         spinner_id = self.root.ids.loader_spinner
