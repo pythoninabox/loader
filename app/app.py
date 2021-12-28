@@ -21,8 +21,7 @@ from kivymd.uix.menu import MDDropdownMenu
 from kivy.core.text import LabelBase
 from kivymd.font_definitions import theme_font_styles
 from kivy.clock import Clock
-import asynckivy as ak
-import asyncio
+import trio
 
 
 class MainApp(MDApp):
@@ -92,7 +91,16 @@ class MainApp(MDApp):
         serial_port = self.serial_port
         # self.erase_flash(serial_port)
         # self.update_flash(serial_port, firmware)
-        asyncio.run(self.update_flash(serial_port, firmware))
+        # ak.start(self.status_spinner(True))
+        trio.run(self.mbuto)
+
+        # asyncio.run(self.active_loader())
+
+    async def mbuto(self):
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(self.status_spinner, True)
+            nursery.start_soon(self.update_flash,
+                               self.serial_port, self.firmware_path)
 
     def erase_flash(self, device):
         """erase esp32 flash"""
@@ -106,25 +114,25 @@ class MainApp(MDApp):
                        '--port', device.device, '--baud',
                         '460800', 'write_flash', '-z',
                         '0x1000', firmware])"""
-        # await subprocess.run(['sleep', '2'])
+        #subprocess.run(['sleep', '2'])
 
-        self.status_spinner(True)
-        proc = await asyncio.create_subprocess_shell(
-            'sleep 2',
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await proc.communicate()
+        res = await trio.open_process(['sleep', '2'])
+        # async with await trio.open_process(['sleep', '2'], stdout=subprocess.PIPE) as process:
+        #    print(process.stdout)
+        #res = subprocess.Popen(['sleep', '2'])
 
-        """stdout, stderr = await proc.communicate()
+        print("print response:", res)
 
-        print(f'[command exited with {proc.returncode}]')
-        if stdout:
-            print(f'[stdout]\n{stdout.decode()}')
-        if stderr:
-            print(f'[stderr]\n{stderr.decode()}')"""
+        self.clock = Clock.schedule_interval(
+            lambda x: self.my_callback(res), 0.25)
 
-    def status_spinner(self, status):
+    def my_callback(self, r):
+        if r.returncode == 0:
+            print("finito!")
+            Clock.unschedule(self.clock)
+            trio.run(self.status_spinner, False)
+
+    async def status_spinner(self, status):
         spinner_id = self.root.ids.loader_spinner
         spinner_id.active = status
 
