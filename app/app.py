@@ -1,27 +1,17 @@
 #!/usr/bin/env python3
 
-import time
-import subprocess
-from functools import partial
+import trio
 from serial.tools.list_ports import comports
 from pathlib import Path
 from kivy.uix.screenmanager import Screen
-from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
 from kivy.core.window import Window
-from kivy.lang import Builder
-
 from kivymd.app import MDApp
-from kivymd.uix.button import MDRectangleFlatButton
-from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.filemanager import MDFileManager
 from kivymd.toast import toast
-
 from kivymd.uix.menu import MDDropdownMenu
-from kivy.core.text import LabelBase
-from kivymd.font_definitions import theme_font_styles
-from kivy.clock import Clock
-import trio
+
+from clocker import Clocker
+from clocker import PlaceholderSerialPort
 
 
 class MainApp(MDApp):
@@ -39,7 +29,6 @@ class MainApp(MDApp):
             selector='file',
             ext=['.py', '.bin']
         )
-        # print(self.theme_cls.font_styles)
 
     def build(self):
         self.theme_cls.primary_palette = "Teal"
@@ -47,6 +36,9 @@ class MainApp(MDApp):
         screen = Screen()
         Window.size = (800, 600)
         return screen
+
+    def stampaddio():
+        print("ciao ciao!")
 
     def file_manager_open(self):
         self.file_manager.show('/')  # entry point of browser
@@ -87,11 +79,6 @@ class MainApp(MDApp):
         return p.resolve().__str__()
 
     def load_on_device(self):
-        firmware = self.firmware_path
-        serial_port = self.serial_port
-        # self.erase_flash(serial_port)
-        # self.update_flash(serial_port, firmware)
-        # ak.start(self.status_spinner(True))
         trio.run(self.nursery_erase)
 
     # erasing/updating operations
@@ -99,8 +86,7 @@ class MainApp(MDApp):
     async def nursery_erase(self):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self.status_spinner, True)
-            nursery.start_soon(self.erase_flash,
-                               self.serial_port)
+            nursery.start_soon(self.erase_flash, self.serial_port)
 
     async def nursery_update(self):
         async with trio.open_nursery() as nursery:
@@ -108,35 +94,38 @@ class MainApp(MDApp):
             nursery.start_soon(self.update_flash,
                                self.serial_port, self.firmware_path)
 
+    def active_update(self):
+        trio.run(self.nursery_update)
+
     async def erase_flash(self, device):
         """erase esp32 flash"""
-        """subprocess.run(['esptool.py', '--chip', 'esp32',
-                       '--port', device.device, 'erase_flash'])"""
-        toast("erasing...", duration=2)
+
+        command = ['esptool.py', '--chip', 'esp32',
+                   '--port', device.device, 'erase_flash']
+
+        toast("erasing...", duration=1)
         res = await trio.open_process(['sleep', '2'])
 
-        self.clock = Clock.schedule_interval(
-            lambda x: self.my_callback(res), 0.25)
+        clock = Clocker(res, 0.25, self.active_update)
+        clock.start()
 
     async def update_flash(self, device, firmware):
         """update esp32 flash"""
-        """subprocess.run(['esptool.py', '--chip', 'esp32',
-                       '--port', device.device, '--baud',
-                        '460800', 'write_flash', '-z',
-                        '0x1000', firmware])"""
-        #subprocess.run(['sleep', '2'])
 
-        toast("updating...", duration=2)
+        command = ['esptool.py', '--chip', 'esp32', '--port', device.device,
+                   '--baud', '460800', 'write_flash', '-z', '0x1000', firmware]
+
+        toast("updating...", duration=1)
         res = await trio.open_process(['sleep', '2'])
 
-        self.clock = Clock.schedule_interval(
-            lambda x: self.my_callback(res), 0.25)
+        clock = Clocker(res, 0.25, self.final_exitus)
+        clock.start()
 
-    def my_callback(self, r):
-        if r.returncode == 0:
-            print("finito!")
-            Clock.unschedule(self.clock)
-            trio.run(self.nursery_update)
+    def final_exitus(self):
+        spinner_id = self.root.ids.loader_spinner
+        spinner_id.active = False
+        exitus = self.root.ids.exitus
+        exitus.text = "PROCESS COMPLETED"
 
     async def status_spinner(self, status):
         spinner_id = self.root.ids.loader_spinner
@@ -174,11 +163,6 @@ class MainApp(MDApp):
             return ports
         else:
             return [PlaceholderSerialPort()]
-
-
-class PlaceholderSerialPort():
-    def __init__(self):
-        self.device = "no device available"
 
 
 MainApp().run()
